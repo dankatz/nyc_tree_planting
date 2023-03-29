@@ -24,8 +24,23 @@ st_trees <- st_trees %>%
 test$genus
 hist(st_trees$BA_m2)
 
-#export table with basal area 
+#export table with basal area summary at genus level
 genus_summary <- st_trees %>%  group_by(genus) %>% 
   summarize(total_BA = sum(BA_m2, na.rm = TRUE),
             n_trees = n()) %>% 
-  arrange(total_BA)
+  arrange(-total_BA) %>% 
+  mutate(prop_ba = total_BA / sum(total_BA),
+         prop_n = n_trees / sum(n_trees))
+
+write_csv(genus_summary, here("st_tree_genus_summary.csv"))
+
+
+#export table with basal area summary at species level
+spp_summary <- st_trees %>%  group_by(spc_latin) %>% 
+  summarize(total_BA = sum(BA_m2, na.rm = TRUE),
+            n_trees = n()) %>% 
+  arrange(-total_BA) %>% 
+  mutate(prop_ba = total_BA / sum(total_BA),
+         prop_n = n_trees / sum(n_trees))
+
+write_csv(spp_summary, here("st_tree_species_summary.csv"))
