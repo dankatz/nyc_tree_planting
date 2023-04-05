@@ -402,6 +402,7 @@ dplyr::select(taxon) %>% sample_n(200000, replace = TRUE) %>%
   expand_grid(., age = 1:50)
   
 filter(st_tree_sample, taxon == "Morus")
+filter(st_tree_sample, taxon == "Quercus" & age == 1)
 
 age_dbh_pol_join <- age_dbh_pol %>%   
   mutate(taxon = case_when(
@@ -428,3 +429,11 @@ sim_a %>% #filter(taxon == "Quercus") %>%
 
 
 ggsave("pollen_prod_200k_st_trees.jpeg", dpi = 300, width = 7, height = 5, units = "in")
+
+### a couple misc stats #######################
+sum(citywide_pol_join$total_p_quad_gen)
+
+length(st_trees$genus[st_trees$genus == "Morus"])/length(st_trees$genus)
+
+length(st_trees$genus[st_trees$genus == "Betula"])/length(st_trees$genus[st_trees$genus])
+
