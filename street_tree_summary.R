@@ -169,7 +169,7 @@ setdiff(p_mean_max$genus, it_st_genus$genus) %>% as.character() %>% sort()
 table1_small <- table1 %>% 
   filter(pollen_prop > .01 | prop_ba_it > 1 | prop_ba_st > 1)
 
-write.table(table1_small, "clipboard", sep="\t", row.names=FALSE)
+#write.table(table1_small, "clipboard", sep="\t", row.names=FALSE)
 
 
 
@@ -260,10 +260,20 @@ citywide_pol %>%
   ggplot(aes(x = reorder(Genus, -total_p_quad_gen), y = total_p_quad_gen)) + geom_col()+ ggthemes::theme_few() + xlab("genus") +
   ylab("pollen produced (quadrillions)") +
   theme(axis.text.x = element_text(angle = 45, hjust=1)) #ylab(average~pollen~(grains/m^3))
-ggsave("pollen_prod_total_genus.jpeg", dpi = 300, width = 7, height = 4, units = "in")
+#ggsave("pollen_prod_total_genus.jpeg", dpi = 300, width = 7, height = 4, units = "in")
 
 
+#histogram of iTree DBH
+names(it_dbh_genus_np)
+it_dbh_genus_np %>% 
+  mutate(dbh_tree_total = sqrt(tree_BA/0.00007854)) %>% 
+  filter(!is.na(per_tree_pollen_prod)) %>% 
+  ggplot(aes(x = dbh_tree_total)) + geom_histogram() + facet_wrap(~Genus, scales = "free_y") + 
+  xlab("DBH (cm)")+
+  ggthemes::theme_few() + theme(strip.text = element_text(face = "italic"))
 
+  
+  
 #calculate total pollen production for each genus by whether planted or unplanted
 it_dbh_genus_np %>% 
   filter(!is.na(per_tree_pollen_prod)) %>% 
@@ -360,19 +370,56 @@ full_join(citywide_pol_join, citywide_pol_st_join) %>%
   ylab("pollen produced (quadrillions)") +
   theme(axis.text.x = element_text(angle = 45, hjust=1)) #ylab(average~pollen~(grains/m^3))
 
-ggsave("pollen_prod_total_genus_st_it.jpeg", dpi = 300, width = 7, height = 5, units = "in")
+#ggsave("pollen_prod_total_genus_st_it.jpeg", dpi = 300, width = 7, height = 5, units = "in")
 
 
 ### calculating future pollen production: i-Tree trees growth and mortality ###########################################################
 #ran a forecast in i-Tree eco forecast module using standard parameter values
 library("DBI")
-#install.packages("RSQLite")
-sim_filepath <- "C:/Users/dsk273/Box/NYC projects/tree data/itree_2013_230626_simulation.db"
+sim_filepath <- "C:/Users/dsk273/Box/NYC projects/tree data/itree_2013_230629_simulation_planting200k_eachyear.db"
 mydb <- dbConnect(RSQLite::SQLite(), sim_filepath)
-dbListTables(mydb)
+#dbListTables(mydb)
 it_forecast <- dbReadTable(mydb, "EcoForecastCohorts")
-names(it_forecast)
+#names(it_forecast)
 dbDisconnect(mydb)
+
+sum(it_forecast$NumTrees[it_forecast$ForecastedYear == 50]) 
+
+it_forecast_c <- it_forecast %>% 
+  rowwise() %>% 
+  mutate(cohortkey2 =  paste(as.character(unlist(CohortKey)), collapse = ''),
+         parentkey2 =  paste(as.character(unlist(ParentKey)), collapse = ''))
+
+###looping through to provide a unique key for each tree (the original key system is based on paired identifiers in the cohort key and parentkey columns)
+#last year set up
+
+it_forecast_c2 <- it_forecast_c %>% 
+  mutate(tree_key = case_when(ForecastedYear == 50 ~ cohortkey2))
+
+### going from the last forecasted year to the first
+for(i in 50:1){ #takes a few minutes to run
+  year_end <- it_forecast_c2 %>% 
+    filter(ForecastedYear == i) %>% 
+    select(tree_key_temp = tree_key, cohortkey2 = parentkey2)
+  
+  it_forecast_c2 <- left_join(it_forecast_c2, year_end) %>% 
+    mutate(tree_key = case_when( is.na(tree_key) & !is.na(tree_key_temp) ~ tree_key_temp,
+                                 TRUE ~ tree_key)) %>% 
+    select(-tree_key_temp)
+}
+
+#just looking at a single taxon for easy checking to make sure the key value system worked
+test <- it_forecast_c2 %>% 
+  filter(SppCode == "LOJA") %>%  
+  arrange(CrownLightExposure, ForecastedYear)
+
+#denote which trees are part of the tree planting scenario
+planted_trees_lookuptable <- it_forecast_c2 %>% 
+  filter(ForecastedYear > 0 & DBH == 2) %>% 
+  select(tree_key) %>% 
+  distinct() %>% 
+  mutate(origin = "new")
+it_forecast_c2 <- left_join(it_forecast_c2, planted_trees_lookuptable) #it_forecast_c2
 
 #convert species codes to binomials
 it_sp_list <- read_csv("C:/Users/dsk273/Box/NYC projects/tree data/2013_itree_plots/itree_SpeciesList.csv", name_repair = "universal") %>% 
@@ -387,7 +434,7 @@ it_sp_list <- read_csv("C:/Users/dsk273/Box/NYC projects/tree data/2013_itree_pl
 
 #select only genera with pollen production equations
 pollen_prod_focal_genera <- c("Acer", "Betula", "Platanus", "Quercus", "Morus", "Populus", "Gleditsia", "Juglans", "Ulmus")
-it_forecast2 <- left_join(it_forecast, it_sp_list) %>% 
+it_forecast2 <- left_join(it_forecast_c2, it_sp_list) %>% 
     filter(Genus %in% pollen_prod_focal_genera)
 
 it_forecast3 <- it_forecast2 %>%  
@@ -412,67 +459,90 @@ it_forecast3 <- it_forecast2 %>%
 #calculate total pollen production for each taxon
 it_forecast_citywide  <- it_forecast3 %>% 
   mutate(cohort_tree_pollen_prod =per_tree_pollen_prod * NumTrees) %>% #scaling each tree by estimated number per city 
-  group_by(Genus, Species, scientificname, ForecastedYear) %>% 
-  summarize(total_p_bil = sum(cohort_tree_pollen_prod) ) %>% 
+  group_by(Genus, Species, scientificname, ForecastedYear, origin, planted) %>% 
+  summarize(total_p_bil = sum(cohort_tree_pollen_prod),
+            n_trees = sum(NumTrees),
+            ba_mean = mean(tree_BA )) %>% 
   #filter(!is.na(total_p_bil)) %>% 
   mutate(total_p = total_p_bil * 1000000000,
          total_p_tril = total_p / 10^12,
          total_p_quad = total_p / 10^15)
 
-#figure: pollen production over time for each genus
+
+#figure 2: pollen production over time for each species by existing trees vs new trees assuming approximately equal replacement
 it_forecast_citywide %>% 
-  ggplot(aes(x = ForecastedYear, y = total_p_quad, color = Species, group = scientificname)) + geom_line()+ ggthemes::theme_few() + xlab("year") +
+  group_by(Genus, ForecastedYear, origin) %>% 
+  summarize(total_p_quad_genus = sum(total_p_quad)) %>% 
+  mutate(origin = case_when(is.na(origin)~ "original", TRUE ~ origin)) %>% 
+  ggplot(aes(x = ForecastedYear, y = total_p_quad_genus, fill = origin)) + geom_area()+ 
+  ggthemes::theme_few() + xlab("year") + theme(legend.position = c(0.8, 0.2), strip.text = element_text(face = "italic")) + 
+  ylab("pollen produced (quadrillions)") + facet_wrap(~Genus, scales = "free_y") + 
+  scale_fill_manual(name = "tree origin", values = c("gold","gray40"))
+ggsave("pollen_prod_time_treeorigin_genus.jpeg", dpi = 300, width = 6, height = 5, units = "in")
+
+
+#pollen production as a function of age for a tree cohort from each species, also providing survival
+#specific trees to use
+species_to_use <- c("Acer negundo", "Acer platanoides", "Acer rubrum", "Acer saccharinum", "Betula papyrifera", "Gleditsia triacanthos",
+                    "Juglans","Morus alba", "Platanus x hybrida", "Quercus rubra", "Quercus palustris", "Ulmus americana")
+individuals_to_use_in_fig <- it_forecast3 %>% 
+  filter(scientificname %in% species_to_use) %>% 
+  filter(ForecastedYear == 1 & DBH == 2) %>% #select a unique tree cohort from each taxon
+  group_by(scientificname) %>% arrange(-NumTrees) %>%  slice(1) %>% ungroup() %>% 
+  select(tree_key, initial_num_trees = NumTrees) %>% mutate(selected_indiv = "for_fig")
+
+left_join(it_forecast3, individuals_to_use_in_fig) %>% 
+  filter(selected_indiv == "for_fig") %>% 
+  mutate(per_tree_pollen_prod = case_when(per_tree_pollen_prod < 0 ~ 0, TRUE ~ per_tree_pollen_prod)) %>% #removing any negative value artifacts
+  mutate(proportion_surviving = NumTrees/initial_num_trees)  %>% 
+  ggplot(aes(x= ForecastedYear, y = per_tree_pollen_prod, color = proportion_surviving*100, fill = proportion_surviving*100)) + geom_col() + 
+  ggthemes::theme_few() + facet_wrap(~scientificname, scales = "free_y") +
+  xlab("year") + ylab("pollen production per tree (billions of grains)") + 
+  scale_fill_viridis_c(name = "surviving (%)")+scale_color_viridis_c(name = "surviving (%)")+
+  theme(strip.text = element_text(face = "italic"))
+  
+#ggsave("pollen_prod_indiv_time_species.jpeg", dpi = 300, width = 10, height = 7, units = "in")
+
+# it_forecast_citywide %>% 
+#   filter(planted == "planted") %>% 
+#   group_by(Genus, ForecastedYear, planted) %>% 
+#   summarize(total_p_quad_genus = sum(total_p_quad),
+#             total_n_trees = sum(n_trees)) %>% 
+#   ggplot(aes(x = ForecastedYear, y = total_p_quad_genus)) + geom_area()+ ggthemes::theme_few() + xlab("year") +
+#   ylab("pollen produced (quadrillions)") + facet_wrap(~Genus, scales = "free_y")
+
+# #change in planted or unplanted trees over time
+# it_forecast_citywide %>% 
+#   #filter(planted == "planted") %>% 
+#   filter(is.na(planted)) %>% 
+#   group_by(Genus, ForecastedYear, planted) %>% 
+#   summarize(total_p_quad_genus = sum(total_p_quad),
+#             total_n_trees = sum(n_trees),
+#             mean_ba = mean(ba_mean)) %>% 
+#   ggplot(aes(x = ForecastedYear, y = total_n_trees, color = total_p_quad_genus)) + geom_point()+ ggthemes::theme_few() + xlab("year") +
+#   ylab("pollen produced (quadrillions)") + facet_wrap(~Genus, scales = "free_y") + scale_color_viridis_c()
+
+
+#figure: pollen production over time for each species
+it_forecast_citywide %>% 
+  ggplot(aes(x = ForecastedYear, y = total_p_quad, color = Species, group = scientificname)) + geom_point()+ ggthemes::theme_few() + xlab("year") +
   ylab("pollen produced (quadrillions)") + facet_wrap(~Genus, scales = "free_y")
+#ggsave("pollen_prod_time_genus.jpeg", dpi = 300, width = 7, height = 4, units = "in")
 
 
-
-ggsave("pollen_prod_total_genus.jpeg", dpi = 300, width = 7, height = 4, units = "in")
-
-
-
-#calculate total pollen production for each genus by whether planted or unplanted
-it_dbh_genus_np %>% 
-  filter(!is.na(per_tree_pollen_prod)) %>% 
-  mutate(Species = case_when(Genus == "Betula" & Species != "papyrifera" ~ "sp.", 
-                             Genus == "Quercus" & Species != "rubra" & Species != "palustris" ~ "sp.", 
-                             Genus == "Ulmus" & Species != "americana" ~ "sp.", 
-                             TRUE ~ Species)) %>% 
-  mutate(p_all_trees = per_tree_pollen_prod,
-         genus_species = paste(Genus, Species, sep = " ")) %>% 
-  group_by(Genus, status) %>% 
-  summarize(total_p_bil = sum(p_all_trees) ,
-            n = n())  %>% #adding each tree 
-  ungroup() %>% group_by(Genus) %>% #summarize(n2 = sum(n)) %>% 
-  ggplot(aes(x = reorder(Genus, -total_p_bil), y  = total_p_bil, fill = status)) + geom_bar(stat = "identity") + ggthemes::theme_few() + xlab("genus") +
-  ylab("pollen produced (billions)")  + scale_fill_manual(name = "", values = c("gray0","goldenrod",  "gray70")) + theme(axis.text.x = element_text(face = "italic"))
-
-
-#calculate total pollen production for each genus by i-Tree land use
-it_dbh_genus_np %>% 
-  filter(!is.na(per_tree_pollen_prod)) %>% 
-  mutate(Species = case_when(Genus == "Betula" & Species != "papyrifera" ~ "sp.", 
-                             Genus == "Quercus" & Species != "rubra" & Species != "palustris" ~ "sp.", 
-                             Genus == "Ulmus" & Species != "americana" ~ "sp.", 
-                             TRUE ~ Species)) %>% 
-  mutate(p_all_trees = per_tree_pollen_prod,
-         genus_species = paste(Genus, Species, sep = " ")) %>% 
-  group_by(Genus, land_use) %>% 
-  summarize(total_p_bil = sum(p_all_trees) ,
-            n = n())  %>% #adding each tree 
-  ggplot(aes(x = reorder(Genus, -total_p_bil), y  = total_p_bil, fill = land_use)) + geom_bar(stat = "identity") + ggthemes::theme_few() + xlab("genus") +
-  ylab("pollen produced (billions)")  + theme(axis.text.x = element_text(face = "italic")) + scale_fill_discrete(name = "land use")
-
-
-
-sort(unique(it_forecast$SppCode))
-it_forecast %>% 
-  dplyr::filter(SppCode == "BEPA") %>% 
-  ggplot(aes(x= ForecastedYear, y = NumTrees, col = DBH)) + geom_point() +scale_color_viridis_c() + theme_bw()
-
-
-it_forecast %>% 
-  #dplyr::filter(SppCode == "BEPA") %>% 
-  ggplot(aes(x= ForecastedYear, y = DBH, col = NumTrees)) + geom_point() +scale_color_viridis_c() + theme_bw() + facet_wrap(~genus)
+#histogram of iTree DBH over a few different years
+names(it_dbh_genus_np)
+years_to_include <- c(0, 15, 30, 45)
+it_forecast3 %>% 
+  filter(ForecastedYear %in% years_to_include ) %>% 
+  mutate(dbh_0 = round(DBH, -1)) %>% 
+  group_by(Genus, ForecastedYear, dbh_0) %>% 
+  summarize(n_trees_dbh = sum(NumTrees))  %>% 
+  ggplot(aes(x = dbh_0, y = n_trees_dbh)) + geom_bar(stat = "identity", position = "dodge") + 
+  facet_grid(Genus ~ paste("year:", ForecastedYear), scales = "free_y") + 
+  xlab("DBH (cm)")+ ylab("number of trees in NYC")+ #scale_fill_viridis_d() + 
+  ggthemes::theme_few() + theme(strip.text = element_text(face = "italic"))
+#ggsave("n_trees_nyc_per_year.jpg", dpi = 300, width = 7, height = 10, units = "in")
 
 
 
@@ -605,7 +675,7 @@ sim_a %>% #filter(taxon == "Quercus") %>%
   theme(strip.text = element_text(face = "italic"))
 
 
-ggsave("pollen_prod_200k_st_trees.jpeg", dpi = 300, width = 7, height = 5, units = "in")
+#ggsave("pollen_prod_200k_st_trees.jpeg", dpi = 300, width = 7, height = 5, units = "in")
 
 ### a couple misc stats #######################
 sum(citywide_pol_join$total_p_quad_gen)
