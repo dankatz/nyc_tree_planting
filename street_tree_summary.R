@@ -42,7 +42,7 @@ st_genus_summary <- st_trees %>%  group_by(genus) %>%
 #write_csv(st_genus_summary, here("st_tree_genus_summary.csv"))
 
 
-#export table with basal area summary at species level
+#SI2: export table with basal area summary at species level
 st_spp_summary <- st_trees %>%  group_by(spc_latin) %>% 
   summarize(total_BA = sum(BA_m2, na.rm = TRUE),
             n_trees = n()) %>% 
@@ -50,7 +50,17 @@ st_spp_summary <- st_trees %>%  group_by(spc_latin) %>%
   mutate(prop_ba = total_BA / sum(total_BA),
          prop_n = n_trees / sum(n_trees))
 
-#write_csv(st_spp_summary, here("st_tree_species_summary.csv"))
+SI2_st_spp_summary <- st_spp_summary %>% 
+  mutate(total_BA = round(total_BA, 2),
+        total_BA = formatC(total_BA, format = "f", big.mark =",", digits = 2),
+         n_trees = formatC(n_trees, format = "d", big.mark =","),
+         perc_ba = round(prop_ba*100, 3),
+         perc_n = round(prop_n * 100, 3)
+         ) %>% 
+  dplyr::select(-prop_ba, - prop_n)
+  
+
+#write_csv(SI2_st_spp_summary, here("st_tree_species_summary.csv"))
 
 #test<-st_trees %>% filter(genus == "Ulmus")
 
@@ -157,9 +167,31 @@ p_prop <- p_sum %>%
 
 p_prop_max <- left_join(p_prop, p_max)
 
+#distinguishing between Picea and Pinus by going back to Guy's raw data
+lincoln_raw_path <- "C:/Users/dsk273/Box/collaborations/NAB_NPN/NAB_unprocessed_data/Pollen_LincolnCenter_allyears_072913 (1)(1).xlsx"
+lincoln_raw_2009 <- readxl::read_xlsx(path = lincoln_raw_path, sheet = "2009")
+lincoln_raw_2010 <- readxl::read_xlsx(path = lincoln_raw_path, sheet = "2010")
+lincoln_raw_2011 <- readxl::read_xlsx(path = lincoln_raw_path, sheet = "2011")
+lincoln_raw_2012 <- readxl::read_xlsx(path = lincoln_raw_path, sheet = "2012")
+lincoln_raw <- bind_rows(lincoln_raw_2009, lincoln_raw_2010, lincoln_raw_2011, lincoln_raw_2012)
+sum(as.numeric(lincoln_raw$Picea), na.rm = T) / sum(p_sum$pollen_sum)
+max(as.numeric(lincoln_raw$Picea), na.rm = T)
+sum(as.numeric(lincoln_raw$Pinus), na.rm = T)/ sum(p_sum$pollen_sum)
+max(as.numeric(lincoln_raw$Pinus), na.rm = T)
+
+p_prop_max  <- p_prop_max %>% 
+  filter(genus != "Pinaceae") %>% 
+  add_row(genus = "Pinus", pollen_prop = sum(as.numeric(lincoln_raw$Pinus), na.rm = T)/ sum(p_sum$pollen_sum),
+          pollen_max = max(as.numeric(lincoln_raw$Pinus), na.rm = T)) %>% 
+  add_row(genus = "Picea", pollen_prop = sum(as.numeric(lincoln_raw$Picea), na.rm = T)/ sum(p_sum$pollen_sum),
+          pollen_max = max(as.numeric(lincoln_raw$Picea), na.rm = T)) %>% 
+  mutate(pollen_perc = round(pollen_prop * 100, 2),
+         pollen_max = round(pollen_max, 1)) %>% 
+  dplyr::select(genus, pollen_perc, pollen_max)
+  
 
 ### export table 1 ########################################################################
-table1 <- left_join(it_st_genus, p_prop_max)
+table1 <- left_join(it_st_genus, p_prop_max) 
 #write_csv(it_st_genus, "C:/Users/danka/Box/NYC projects/tree data/itree_st_trees_genus_summary.csv")
 #write.table(table1, "clipboard", sep="\t", row.names=FALSE)
 
@@ -167,7 +199,7 @@ setdiff(it_st_genus$genus, p_mean_max$genus) %>% as.character() %>% sort()
 setdiff(p_mean_max$genus, it_st_genus$genus) %>% as.character() %>% sort()
 
 table1_small <- table1 %>% 
-  filter(pollen_prop > .01 | prop_ba_it > 1 | prop_ba_st > 1)
+  filter(pollen_perc > 1 | prop_ba_it > 1 | prop_ba_st > 1)
 
 #write.table(table1_small, "clipboard", sep="\t", row.names=FALSE)
 
@@ -208,11 +240,11 @@ table_SI3 <- it_dbh_genus %>%
   group_by(Genus, Species) %>% 
   summarize(n_trees_itree = n(),
             trees_percent = round(100*(n_trees_itree/1075), 2),
-            total_trees_nyc = round(n_trees_itree * itree_to_nyc_scaling_factor, 0),
-            taxon_ba_itree = round(sum(tree_BA), 4),
+            total_trees_nyc = formatC(round(n_trees_itree * itree_to_nyc_scaling_factor, -3), format="d", big.mark=","),
+            taxon_ba_itree = round(sum(tree_BA), 3),
             taxon_ba_rel_itree = round(100 * (taxon_ba_itree /50.49559), 3)) %>% #total BA measured in iTree plots = 50.49559
   arrange(-taxon_ba_itree) %>% ungroup() #%>% summarize(sum_ba = sum(taxon_rel_BA_itree))
-#write_csv(table_SI3, "table_SI3_230626.csv")
+#write_csv(table_SI3, "table_SI3_230721.csv")
 
 
 #select only genera with pollen production equations
@@ -397,7 +429,7 @@ it_forecast_c2 <- it_forecast_c %>%
   mutate(tree_key = case_when(ForecastedYear == 50 ~ cohortkey2))
 
 ### going from the last forecasted year to the first
-for(i in 50:1){ #takes a few minutes to run
+for(i in 50:1){ #takes an hour to run
   year_end <- it_forecast_c2 %>% 
     filter(ForecastedYear == i) %>% 
     select(tree_key_temp = tree_key, cohortkey2 = parentkey2)
@@ -540,7 +572,7 @@ it_forecast3 %>%
   summarize(n_trees_dbh = sum(NumTrees))  %>% 
   ggplot(aes(x = dbh_0, y = n_trees_dbh)) + geom_bar(stat = "identity", position = "dodge") + 
   facet_grid(Genus ~ paste("year:", ForecastedYear), scales = "free_y") + 
-  xlab("DBH (cm)")+ ylab("number of trees in NYC")+ #scale_fill_viridis_d() + 
+  xlab("DBH (inches)")+ ylab("number of trees in NYC")+ #scale_fill_viridis_d() + 
   ggthemes::theme_few() + theme(strip.text = element_text(face = "italic"))
 #ggsave("n_trees_nyc_per_year.jpg", dpi = 300, width = 7, height = 10, units = "in")
 
