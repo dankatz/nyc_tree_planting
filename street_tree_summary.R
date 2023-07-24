@@ -510,7 +510,7 @@ it_forecast_citywide %>%
   ggthemes::theme_few() + xlab("year") + theme(legend.position = c(0.8, 0.2), strip.text = element_text(face = "italic")) + 
   ylab("pollen produced (quadrillions)") + facet_wrap(~Genus, scales = "free_y") + 
   scale_fill_manual(name = "tree origin", values = c("gold","gray40"))
-ggsave("pollen_prod_time_treeorigin_genus.jpeg", dpi = 300, width = 6, height = 5, units = "in")
+#ggsave("pollen_prod_time_treeorigin_genus.jpeg", dpi = 300, width = 6, height = 5, units = "in")
 
 
 #pollen production as a function of age for a tree cohort from each species, also providing survival
@@ -525,15 +525,22 @@ individuals_to_use_in_fig <- it_forecast3 %>%
 
 left_join(it_forecast3, individuals_to_use_in_fig) %>% 
   filter(selected_indiv == "for_fig") %>% 
+  mutate(dbh_cm = 2.54 * DBH) %>% 
   mutate(per_tree_pollen_prod = case_when(per_tree_pollen_prod < 0 ~ 0, TRUE ~ per_tree_pollen_prod)) %>% #removing any negative value artifacts
   mutate(proportion_surviving = NumTrees/initial_num_trees)  %>% 
-  ggplot(aes(x= ForecastedYear, y = per_tree_pollen_prod, color = proportion_surviving*100, fill = proportion_surviving*100)) + geom_col() + 
+  ggplot(aes(x= ForecastedYear, y = per_tree_pollen_prod, color = dbh_cm, fill = dbh_cm)) + geom_col() + 
   ggthemes::theme_few() + facet_wrap(~scientificname, scales = "free_y") +
   xlab("year") + ylab("pollen production per tree (billions of grains)") + 
-  scale_fill_viridis_c(name = "surviving (%)")+scale_color_viridis_c(name = "surviving (%)")+
+  scale_fill_viridis_c(name = "DBH (cm)")+scale_color_viridis_c(name = "DBH (cm)")+
   theme(strip.text = element_text(face = "italic"))
   
 #ggsave("pollen_prod_indiv_time_species.jpeg", dpi = 300, width = 10, height = 7, units = "in")
+
+# # a little check on growth rates
+# left_join(it_forecast3, individuals_to_use_in_fig) %>% 
+#   filter(selected_indiv == "for_fig") %>% 
+#   filter(scientificname == "Morus alba") %>% 
+#   mutate(dbh_cm = 2.54 * DBH) -> test 
 
 # it_forecast_citywide %>% 
 #   filter(planted == "planted") %>% 
@@ -567,147 +574,148 @@ names(it_dbh_genus_np)
 years_to_include <- c(0, 15, 30, 45)
 it_forecast3 %>% 
   filter(ForecastedYear %in% years_to_include ) %>% 
-  mutate(dbh_0 = round(DBH, -1)) %>% 
+  mutate(dbh_cm = DBH * 2.54,
+    dbh_0 = round(dbh_cm, -1)) %>% 
   group_by(Genus, ForecastedYear, dbh_0) %>% 
   summarize(n_trees_dbh = sum(NumTrees))  %>% 
   ggplot(aes(x = dbh_0, y = n_trees_dbh)) + geom_bar(stat = "identity", position = "dodge") + 
   facet_grid(Genus ~ paste("year:", ForecastedYear), scales = "free_y") + 
-  xlab("DBH (inches)")+ ylab("number of trees in NYC")+ #scale_fill_viridis_d() + 
+  xlab("DBH (cm)")+ ylab("number of trees in NYC")+ #scale_fill_viridis_d() + 
   ggthemes::theme_few() + theme(strip.text = element_text(face = "italic"))
 #ggsave("n_trees_nyc_per_year.jpg", dpi = 300, width = 7, height = 10, units = "in")
 
 
 
 
-### calculating tree growth and pollen production over time for planted trees ###########################################################
-#load in tree growth equations for available species
-# DBH ~ age equations are available from: 	https://doi.org/10.2737/PSW-GTR-253
-# relevant sections include 
-
-tree_growth_eqns <- read_csv("C:/Users/dsk273/Box/NYC projects/tree data/urban_tree_growth_eqns/Data/TS6_Growth_coefficients.csv") %>% 
-  clean_names() %>% 
-  mutate(genus = sub(" .*", "", scientific_name)) %>% 
-  filter(independent_variable == "age" & predicts_component == "dbh") %>% 
-  filter(region == "NoEast" | genus == "Morus" | scientific_name == "Acer negundo" | scientific_name == "Betula nigra")
-
-test <- unique(tree_growth_eqns$scientific_name) %>% as.data.frame() %>% arrange(.) 
-
-#create pollen production ~ tree age for taxa with pollen production eqns
-pollen_prod_sp <- c("Acer negundo","Acer platanoides", "Acer rubrum", "Acer saccharinum", 
-                    "Betula nigra",
-                    "Gleditsia triacanthos", 
-                    "Morus alba",
-                    "Platanus x acerifolia",
-                    "Quercus palustris", "Quercus rubra", 
-                    "Ulmus americana")
-
-age_dbh_pol <- expand.grid(age = 1:100, scientific_name = pollen_prod_sp) %>% 
-  mutate(genus = sub(" .*", "", scientific_name)) %>% 
-   mutate(dbh = case_when( #note:
-    scientific_name == "Acer negundo" ~ 4.28050  + 2.10929 * age,
-    scientific_name == "Acer saccharinum" ~ exp(1.15830 + 1.77675*log(log(age +1) + (0.25666/2))),
-    scientific_name == "Acer platanoides" ~ 5.61705  + 0.91636 * age,
-    scientific_name == "Acer rubrum" ~ 2.64166 + 1.2707 * age + -0.01758 *age^2 + 0.00012 * age^3,
-    scientific_name == "Betula nigra" ~ -1.17183  + 2.12321 * age,
-    scientific_name == "Gleditsia triacanthos" ~ exp(1.68387 + 1.59967*log(log(age +1) + (0.06782/2))),
-    #scientific_name == "Morus alba" ~ 0.58767+ 1.31220 * age + 0.00991 *age^2 + -0.00014 * age^3, #SWDSTRCT
-    #scientific_name == "Morus alba" ~ -4.50256 + 4.49267 * age + -0.14464 *age^2 + -0.00188 * age^3 #PNW
-    genus == "Morus" ~ exp(-0.06388 + 2.93553* log(log(age +1) + (0.08557/2))), #	LoMidW
-    scientific_name == "Platanus x acerifolia" ~ 2.40322 + 1.29420 * age + -0.00705 *age^2,
-    scientific_name == "Quercus palustris" ~ 2.85629 + 1.29969 * age,
-    scientific_name == "Quercus rubra" ~ 2.89687 + 0.91156 * age,
-    scientific_name == "Ulmus americana" ~ 5.28982 + 1.31631 * age
-  )) %>% 
-  mutate( #restrict data to actual range of data for DBH ~ age
-    dbh = case_when(
-                    scientific_name == "Acer negundo" & dbh > 92.5 ~ 92.5,
-                    scientific_name == "Acer platanoides" & dbh > 120.7 ~ 120.7,
-                    scientific_name == "Acer rubrum" & dbh > 124.5 ~ 124.5,
-                    scientific_name == "Acer saccharinum" & dbh > 123.2 ~ 123.2,
-                    genus == "Betula" & dbh > 72.1 ~ 72.1,
-                    scientific_name == "Gleditsia triacanthos" & dbh > 94.0 ~ 94.0,
-                    scientific_name == "Platanus x acerifolia" & dbh > 164.6 ~ 164.6,
-                    scientific_name == "Quercus palustris" & dbh > 127.8 ~ 127.8,
-                    scientific_name == "Quercus rubra" & dbh > 171.7 ~ 171.7,
-                    scientific_name == "Ulmus americana" & dbh > 155.7 ~ 155.7,
-                    TRUE ~ dbh)
-  ) %>%  
-  mutate(tree_BA = 0.00007854 * dbh * dbh) %>% 
-   mutate(tree_BA = case_when(genus == "Ulmus" & tree_BA > 0.7 ~ 0.7, 
-                             genus == "Morus" & tree_BA > 1 ~ 1, 
-                             TRUE ~ tree_BA)) %>% #restricting Ulmus BA to the range in which pollen production was measured
-  mutate(per_tree_pollen_prod = case_when(
-    scientific_name == "Acer negundo" ~ 253.71 * tree_BA + 0.38,
-    scientific_name == "Acer platanoides" ~ 25.59 * tree_BA + 1.22,
-    scientific_name == "Acer rubrum" ~ (62.32 * tree_BA + 1.27)*0.106, #.106 is the sex ratio
-    scientific_name == "Acer saccharinum" ~ (exp(2.28 * tree_BA + 21.98))/1000000000, #convert to billions
-    genus == "Betula"  ~ 561.16 * tree_BA + 5.03,
-    genus == "Gleditsia"  ~ 659.91 * tree_BA -3.25,
-    genus == "Juglans"  ~ 239.08 * tree_BA + 11.47,
-    genus == "Morus"  ~ (6021.57 * tree_BA^2 + 1366.09 * tree_BA + 254.06)*0.578, #.58 adjusts for sex ratio
-    genus == "Platanus"  ~ 1066.75 * tree_BA + 1.26,
-    genus == "Populus"  ~ (exp(2.01 * tree_BA + 24.17) * 0.482)/1000000000, #convert to billions
-    genus == "Quercus"  ~ 423.56 * tree_BA + 36.20, #red oaks and unknown oaks
-    scientific_name == "Quercus palustris" ~ 327.2 * tree_BA + 14.9, #pin oaks
-    genus == "Ulmus"  ~ (exp(5.86 * tree_BA + 23.11))/1000000000 #convert to billions
-  )) %>%   
-  mutate(per_tree_pollen_prod = case_when(per_tree_pollen_prod <0 ~ 0, TRUE ~per_tree_pollen_prod)) %>%  #protect against negative intercept for Gleditsia
-  mutate(total_p = per_tree_pollen_prod * 1000000000,
-         total_p_tril = total_p / 10^12,
-         total_p_quad = total_p / 10^15)
-  
-#figure: dbh ~ tree age
-ggplot(age_dbh_pol, aes(x = age, y = dbh, color = scientific_name)) + geom_line() + ggthemes::theme_few()+ theme(legend.text = element_text(face = "italic")) + 
-  scale_color_discrete(name = "species") + xlab("age (years)") + ylab("DBH (cm)") + facet_wrap(~genus)
-
-
-#figure: pollen ~ dbh
-ggplot(age_dbh_pol, aes(x = dbh, y = total_p_tril, color = scientific_name)) + geom_line() + ggthemes::theme_few()+ theme(legend.text = element_text(face = "italic")) + 
-  scale_color_discrete(name = "species") + xlab("DBH (cm)") + ylab("pollen production (trillions)") + facet_wrap(~genus)
-
-
-#figure: pollen ~ tree age
-ggplot(age_dbh_pol, aes(x = age, y = total_p_tril, color = scientific_name)) + geom_line() + ggthemes::theme_few()+ theme(legend.text = element_text(face = "italic")) + 
-  scale_color_discrete(name = "species") + xlab("age (years)") + ylab("pollen production (trillions)") + facet_wrap(~genus)
-
-
-### scenario 1: what if 200,000 trees were planted that reflected current street tree comp ########################################################
-st_tree_sample <- st_trees %>% 
-  mutate(taxon = case_when(
-    genus %in% c("Quercus", "Betula", "Ulmus", "Populus") ~ genus,
-    TRUE ~ spc_latin
-  )) %>% 
-dplyr::select(taxon) %>% sample_n(200000, replace = TRUE) %>% 
-  expand_grid(., age = 1:50)
-  
-filter(st_tree_sample, taxon == "Morus")
-filter(st_tree_sample, taxon == "Quercus" & age == 1)
-
-age_dbh_pol_join <- age_dbh_pol %>%   
-  mutate(taxon = case_when(
-  genus %in% c("Quercus", "Betula", "Ulmus", "Populus", "Morus") ~ as.character(genus),
-  TRUE ~ as.character(scientific_name) )) 
-
-sim_a <- left_join(st_tree_sample, age_dbh_pol_join) %>% 
-  left_join(., citywide_pol_st_join) %>% 
-  left_join(., citywide_pol_join)
-
-#head(sim_a)
-#citywide_pol_st_join
-
-sim_a %>% #filter(taxon == "Quercus") %>% 
-  filter(!is.na(total_p_tril)) %>% 
-  group_by(age, taxon) %>% 
-  summarize(total_p_tril_all_trees = sum(total_p_tril),
-            total_p_quad_all_trees = sum(total_p_quad),
-            total_p_quad_gen_current = mean(total_p_quad_gen), 
-            total_p_st_quad_gen_current = mean(street)) %>% 
-  ggplot(aes(x = age, ymax = total_p_quad_all_trees + total_p_quad_gen_current , ymin = total_p_quad_gen_current )) + geom_ribbon() + theme_bw() + 
-  facet_wrap(~taxon, scales = "free_y") + xlab("tree age (years)") + ylab("additional annual pollen production (quadrillion grains)") +
-  theme(strip.text = element_text(face = "italic"))
-
-
-#ggsave("pollen_prod_200k_st_trees.jpeg", dpi = 300, width = 7, height = 5, units = "in")
+# OLD VERSION BEFORE i-Tree FORECAST ### calculating tree growth and pollen production over time for planted trees ###########################################################
+# #load in tree growth equations for available species
+# # DBH ~ age equations are available from: 	https://doi.org/10.2737/PSW-GTR-253
+# # relevant sections include 
+# 
+# tree_growth_eqns <- read_csv("C:/Users/dsk273/Box/NYC projects/tree data/urban_tree_growth_eqns/Data/TS6_Growth_coefficients.csv") %>% 
+#   clean_names() %>% 
+#   mutate(genus = sub(" .*", "", scientific_name)) %>% 
+#   filter(independent_variable == "age" & predicts_component == "dbh") %>% 
+#   filter(region == "NoEast" | genus == "Morus" | scientific_name == "Acer negundo" | scientific_name == "Betula nigra")
+# 
+# test <- unique(tree_growth_eqns$scientific_name) %>% as.data.frame() %>% arrange(.) 
+# 
+# #create pollen production ~ tree age for taxa with pollen production eqns
+# pollen_prod_sp <- c("Acer negundo","Acer platanoides", "Acer rubrum", "Acer saccharinum", 
+#                     "Betula nigra",
+#                     "Gleditsia triacanthos", 
+#                     "Morus alba",
+#                     "Platanus x acerifolia",
+#                     "Quercus palustris", "Quercus rubra", 
+#                     "Ulmus americana")
+# 
+# age_dbh_pol <- expand.grid(age = 1:100, scientific_name = pollen_prod_sp) %>% 
+#   mutate(genus = sub(" .*", "", scientific_name)) %>% 
+#    mutate(dbh = case_when( #note:
+#     scientific_name == "Acer negundo" ~ 4.28050  + 2.10929 * age,
+#     scientific_name == "Acer saccharinum" ~ exp(1.15830 + 1.77675*log(log(age +1) + (0.25666/2))),
+#     scientific_name == "Acer platanoides" ~ 5.61705  + 0.91636 * age,
+#     scientific_name == "Acer rubrum" ~ 2.64166 + 1.2707 * age + -0.01758 *age^2 + 0.00012 * age^3,
+#     scientific_name == "Betula nigra" ~ -1.17183  + 2.12321 * age,
+#     scientific_name == "Gleditsia triacanthos" ~ exp(1.68387 + 1.59967*log(log(age +1) + (0.06782/2))),
+#     #scientific_name == "Morus alba" ~ 0.58767+ 1.31220 * age + 0.00991 *age^2 + -0.00014 * age^3, #SWDSTRCT
+#     #scientific_name == "Morus alba" ~ -4.50256 + 4.49267 * age + -0.14464 *age^2 + -0.00188 * age^3 #PNW
+#     genus == "Morus" ~ exp(-0.06388 + 2.93553* log(log(age +1) + (0.08557/2))), #	LoMidW
+#     scientific_name == "Platanus x acerifolia" ~ 2.40322 + 1.29420 * age + -0.00705 *age^2,
+#     scientific_name == "Quercus palustris" ~ 2.85629 + 1.29969 * age,
+#     scientific_name == "Quercus rubra" ~ 2.89687 + 0.91156 * age,
+#     scientific_name == "Ulmus americana" ~ 5.28982 + 1.31631 * age
+#   )) %>% 
+#   mutate( #restrict data to actual range of data for DBH ~ age
+#     dbh = case_when(
+#                     scientific_name == "Acer negundo" & dbh > 92.5 ~ 92.5,
+#                     scientific_name == "Acer platanoides" & dbh > 120.7 ~ 120.7,
+#                     scientific_name == "Acer rubrum" & dbh > 124.5 ~ 124.5,
+#                     scientific_name == "Acer saccharinum" & dbh > 123.2 ~ 123.2,
+#                     genus == "Betula" & dbh > 72.1 ~ 72.1,
+#                     scientific_name == "Gleditsia triacanthos" & dbh > 94.0 ~ 94.0,
+#                     scientific_name == "Platanus x acerifolia" & dbh > 164.6 ~ 164.6,
+#                     scientific_name == "Quercus palustris" & dbh > 127.8 ~ 127.8,
+#                     scientific_name == "Quercus rubra" & dbh > 171.7 ~ 171.7,
+#                     scientific_name == "Ulmus americana" & dbh > 155.7 ~ 155.7,
+#                     TRUE ~ dbh)
+#   ) %>%  
+#   mutate(tree_BA = 0.00007854 * dbh * dbh) %>% 
+#    mutate(tree_BA = case_when(genus == "Ulmus" & tree_BA > 0.7 ~ 0.7, 
+#                              genus == "Morus" & tree_BA > 1 ~ 1, 
+#                              TRUE ~ tree_BA)) %>% #restricting Ulmus BA to the range in which pollen production was measured
+#   mutate(per_tree_pollen_prod = case_when(
+#     scientific_name == "Acer negundo" ~ 253.71 * tree_BA + 0.38,
+#     scientific_name == "Acer platanoides" ~ 25.59 * tree_BA + 1.22,
+#     scientific_name == "Acer rubrum" ~ (62.32 * tree_BA + 1.27)*0.106, #.106 is the sex ratio
+#     scientific_name == "Acer saccharinum" ~ (exp(2.28 * tree_BA + 21.98))/1000000000, #convert to billions
+#     genus == "Betula"  ~ 561.16 * tree_BA + 5.03,
+#     genus == "Gleditsia"  ~ 659.91 * tree_BA -3.25,
+#     genus == "Juglans"  ~ 239.08 * tree_BA + 11.47,
+#     genus == "Morus"  ~ (6021.57 * tree_BA^2 + 1366.09 * tree_BA + 254.06)*0.578, #.58 adjusts for sex ratio
+#     genus == "Platanus"  ~ 1066.75 * tree_BA + 1.26,
+#     genus == "Populus"  ~ (exp(2.01 * tree_BA + 24.17) * 0.482)/1000000000, #convert to billions
+#     genus == "Quercus"  ~ 423.56 * tree_BA + 36.20, #red oaks and unknown oaks
+#     scientific_name == "Quercus palustris" ~ 327.2 * tree_BA + 14.9, #pin oaks
+#     genus == "Ulmus"  ~ (exp(5.86 * tree_BA + 23.11))/1000000000 #convert to billions
+#   )) %>%   
+#   mutate(per_tree_pollen_prod = case_when(per_tree_pollen_prod <0 ~ 0, TRUE ~per_tree_pollen_prod)) %>%  #protect against negative intercept for Gleditsia
+#   mutate(total_p = per_tree_pollen_prod * 1000000000,
+#          total_p_tril = total_p / 10^12,
+#          total_p_quad = total_p / 10^15)
+#   
+# #figure: dbh ~ tree age
+# ggplot(age_dbh_pol, aes(x = age, y = dbh, color = scientific_name)) + geom_line() + ggthemes::theme_few()+ theme(legend.text = element_text(face = "italic")) + 
+#   scale_color_discrete(name = "species") + xlab("age (years)") + ylab("DBH (cm)") + facet_wrap(~genus)
+# 
+# 
+# #figure: pollen ~ dbh
+# ggplot(age_dbh_pol, aes(x = dbh, y = total_p_tril, color = scientific_name)) + geom_line() + ggthemes::theme_few()+ theme(legend.text = element_text(face = "italic")) + 
+#   scale_color_discrete(name = "species") + xlab("DBH (cm)") + ylab("pollen production (trillions)") + facet_wrap(~genus)
+# 
+# 
+# #figure: pollen ~ tree age
+# ggplot(age_dbh_pol, aes(x = age, y = total_p_tril, color = scientific_name)) + geom_line() + ggthemes::theme_few()+ theme(legend.text = element_text(face = "italic")) + 
+#   scale_color_discrete(name = "species") + xlab("age (years)") + ylab("pollen production (trillions)") + facet_wrap(~genus)
+# 
+# 
+# ### scenario 1: what if 200,000 trees were planted that reflected current street tree comp ########################################################
+# st_tree_sample <- st_trees %>% 
+#   mutate(taxon = case_when(
+#     genus %in% c("Quercus", "Betula", "Ulmus", "Populus") ~ genus,
+#     TRUE ~ spc_latin
+#   )) %>% 
+# dplyr::select(taxon) %>% sample_n(200000, replace = TRUE) %>% 
+#   expand_grid(., age = 1:50)
+#   
+# filter(st_tree_sample, taxon == "Morus")
+# filter(st_tree_sample, taxon == "Quercus" & age == 1)
+# 
+# age_dbh_pol_join <- age_dbh_pol %>%   
+#   mutate(taxon = case_when(
+#   genus %in% c("Quercus", "Betula", "Ulmus", "Populus", "Morus") ~ as.character(genus),
+#   TRUE ~ as.character(scientific_name) )) 
+# 
+# sim_a <- left_join(st_tree_sample, age_dbh_pol_join) %>% 
+#   left_join(., citywide_pol_st_join) %>% 
+#   left_join(., citywide_pol_join)
+# 
+# #head(sim_a)
+# #citywide_pol_st_join
+# 
+# sim_a %>% #filter(taxon == "Quercus") %>% 
+#   filter(!is.na(total_p_tril)) %>% 
+#   group_by(age, taxon) %>% 
+#   summarize(total_p_tril_all_trees = sum(total_p_tril),
+#             total_p_quad_all_trees = sum(total_p_quad),
+#             total_p_quad_gen_current = mean(total_p_quad_gen), 
+#             total_p_st_quad_gen_current = mean(street)) %>% 
+#   ggplot(aes(x = age, ymax = total_p_quad_all_trees + total_p_quad_gen_current , ymin = total_p_quad_gen_current )) + geom_ribbon() + theme_bw() + 
+#   facet_wrap(~taxon, scales = "free_y") + xlab("tree age (years)") + ylab("additional annual pollen production (quadrillion grains)") +
+#   theme(strip.text = element_text(face = "italic"))
+# 
+# 
+# #ggsave("pollen_prod_200k_st_trees.jpeg", dpi = 300, width = 7, height = 5, units = "in")
 
 ### a couple misc stats #######################
 sum(citywide_pol_join$total_p_quad_gen)
