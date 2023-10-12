@@ -22,7 +22,7 @@ st_trees <- st_trees %>%
          BA_m2 = 0.00007854 *  dbh_cm^2 ) %>% 
   filter(!is.na(genus) &
            status == "Alive") %>% 
-  filter(dbh_cm < 170) %>% #there area  few trees that have implausibly large DBH; I am removing those here
+  filter(dbh_cm < 170) %>% #there are a  few trees that have implausibly large DBH; I am removing those here
   mutate(spc_latin =  case_when(spc_latin == "Acer platanoides 'Crimson King'" ~ "Acer platanoides",
                                 spc_latin == "Cedrus atlantica glauca" ~ "Cedrus atlantica",
                                 spc_latin == "Gleditsia triacanthos var. inermis" ~ "Gleditsia triacanthos",
@@ -190,6 +190,15 @@ p_prop_max  <- p_prop_max %>%
   dplyr::select(genus, pollen_perc, pollen_max)
   
 
+# p %>% 
+#   mutate(doy = lubridate::yday(date),
+#          e_year = lubridate::year(date)) %>% 
+#   ggplot(aes(x = doy, y = Cupressaceae)) + geom_point() + theme_bw() + facet_wrap(~e_year)
+#   
+# names(p)
+
+
+
 ### export table 1 ########################################################################
 table1 <- left_join(it_st_genus, p_prop_max) 
 #write_csv(it_st_genus, "C:/Users/danka/Box/NYC projects/tree data/itree_st_trees_genus_summary.csv")
@@ -252,44 +261,55 @@ pollen_prod_focal_genera <- c("Acer", "Betula", "Platanus", "Quercus", "Morus", 
 it_dbh_genus_n <- it_dbh_genus %>% filter(Genus %in% pollen_prod_focal_genera)
 
 
-#calculate pollen production for each individual
-unique(it_dbh_genus$sp)
-
-it_dbh_genus_np <- 
+#calculate pollen production for each individual, now including SDs
+# unique(it_dbh_genus$sp)
+for(i in 1:1000){
+it_dbh_genus_np_i <-  #
   it_dbh_genus_n %>%  
   mutate(per_tree_pollen_prod = case_when(
-    Genus == "Acer" & Species == "negundo" ~ 253.71 * tree_BA + 0.38,
-    Genus == "Acer" & Species == "platanoides" ~ 25.59 * tree_BA + 1.22,
-    Genus == "Acer" & Species == "rubrum" ~ (62.32 * tree_BA + 1.27)*0.106, #.106 is the sex ratio
-    Genus == "Acer" & Species == "saccharinum" ~ (exp(2.28 * tree_BA + 21.98))/1000000000, #convert to billions
-    Genus == "Betula"  ~ 561.16 * tree_BA + 5.03,
-    Genus == "Gleditsia"  ~ 659.91 * tree_BA -3.25,
-    Genus == "Juglans"  ~ 239.08 * tree_BA + 11.47,
-    Genus == "Morus"  ~ (6021.57 * tree_BA^2 + 1366.09 * tree_BA + 254.06)*0.578, #.58 adjusts for sex ratio
-    Genus == "Platanus"  ~ 1066.75 * tree_BA + 1.26,
-    Genus == "Populus"  ~ exp(2.01 * tree_BA + 24.17) * 0.482, #weren't any recorded in the dbh data so this won't be included
-    Genus == "Quercus"  ~ 423.56 * tree_BA + 36.20, #red oaks and unknown oaks
-    Genus == "Quercus" & Species == "palustris" ~ 327.2 * tree_BA + 14.9, #pin oaks
-    Genus == "Ulmus"  ~ (exp(5.86 * tree_BA + 23.11))/1000000000 #convert to billions
-  )) #did a gut check against fig 3 in Katz et al. 2020; all of these currently line up
+    Genus == "Acer" & Species == "negundo"  ~ rnorm(n = 1, mean = 253.71, sd = 47.75) * tree_BA + rnorm(n = 1, mean = 0.38, sd = 3.26),
+    Genus == "Acer" & Species == "platanoides"  ~ rnorm(n = 1, mean = 25.59, sd = 7.00) * tree_BA + rnorm(n = 1, mean = 1.22, sd = 0.46),
+    Genus == "Acer" & Species == "rubrum" ~ (rnorm(n = 1, mean = 62.32, sd = 13.50) * tree_BA + rnorm(n = 1, mean = 1.27, sd = 0.44)) * 0.106, #.106 is the sex ratio
+    Genus == "Acer" & Species == "saccharinum" ~ (exp(rnorm(n = 1, mean = 2.28, sd =0.49) * tree_BA + rnorm(n = 1, mean =21.98, sd =0.28)))/1000000000, #convert to billions
+    Genus == "Betula"  ~ rnorm(n = 1, mean = 561.16, sd = 228.86)* tree_BA + rnorm(n = 1, mean = 5.03, sd =4.42),
+    Genus == "Gleditsia"  ~ rnorm(n=1, mean = 659.91, sd =103.36) * tree_BA + rnorm(n = 1, mean = -3.25, sd = 1.97),
+    Genus == "Juglans"  ~ rnorm(n = 1, mean = 239.08, sd = 64.85) * tree_BA + rnorm(n = 1, mean = 11.47, sd = 8.22),
+    Genus == "Morus"  ~ rnorm(n =1, mean = 6021.57, sd =2011.79) * tree_BA^2 + rnorm(n = 1, mean = -67.95, sd = 1366.09) * tree_BA +
+      rnorm(n = 1, mean = 254.06, sd = 93.26)*0.578, #.58 adjusts for sex ratio
+    Genus == "Platanus"  ~ rnorm(n = 1, mean = 1066.75, sd = 251.73) * tree_BA + rnorm(n = 1, mean = 1.26, sd = 8.15),
+    Genus == "Populus"  ~ (exp(rnorm(n = 1, mean = 2.01, sd = 0.24) * tree_BA + rnorm(n = 1, mean = 24.17, sd = 0.19)) * 0.482)/1000000000, #convert to billions
+    Genus == "Quercus"  ~ rnorm(n = 1, mean = 423.56, sd = 85.45) * tree_BA + rnorm(n = 1, mean = 36.20, sd = 11.42), #red oaks and unknown oaks
+    Genus == "Quercus" & Species == "palustris" ~ rnorm(n = 1, mean = 327.2, sd =100.94) * tree_BA + rnorm(n = 1, mean = 14.9, sd = 7.41), #pin oaks
+    Genus == "Ulmus"  ~ (exp(rnorm(n = 1, mean = 5.86, sd = 0.35) * tree_BA + rnorm(n = 1, mean = 23.11, sd = 0.15)))/1000000000 #convert to billions
+    ),
+    iter = i ) #did a gut check against fig 3 in Katz et al. 2020; all of these currently line up
+
+
+ifelse(i == 1,
+       it_dbh_genus_np_all <- it_dbh_genus_np_i,
+       it_dbh_genus_np_all <- bind_rows(it_dbh_genus_np_all, it_dbh_genus_np_i))
+}
 
 #calculate total pollen production for each taxon
 citywide_pol <- 
-  it_dbh_genus_np %>% 
+  it_dbh_genus_np_all %>% 
   mutate(p_all_trees = per_tree_pollen_prod,
          genus_species = paste(Genus, Species, sep = " ")) %>% 
-  group_by(Genus, Species, genus_species) %>% 
+  group_by(iter, Genus) %>% 
   summarize(total_p_bil = sum(p_all_trees) * itree_to_nyc_scaling_factor) %>%  #adding each tree and also removing the billions
     #also adding in a multiplication term to scale from the plots to the city; see above
   filter(!is.na(total_p_bil)) %>% 
   mutate(total_p = total_p_bil * 1000000000,
          total_p_tril = total_p / 10^12,
-         total_p_quad = total_p / 10^15)
+         total_p_quad = total_p / 10^15) %>% 
+  group_by(Genus) %>% 
+  summarize(total_p_quad_mean = mean(total_p_quad),
+            total_p_quad_sd = sd(total_p_quad))
+
 
 citywide_pol %>% 
-  group_by(Genus) %>% 
-  summarize(total_p_quad_gen = sum(total_p_quad)) %>% 
-  ggplot(aes(x = reorder(Genus, -total_p_quad_gen), y = total_p_quad_gen)) + geom_col()+ ggthemes::theme_few() + xlab("genus") +
+  ggplot(aes(x = reorder(Genus, -total_p_quad_mean), y = total_p_quad_mean, ymax = total_p_quad_mean + total_p_quad_sd, ymin = total_p_quad_mean)) + 
+  geom_col()+ geom_errorbar(width = 0.2) + ggthemes::theme_few() + xlab("genus") +
   ylab("pollen produced (quadrillions)") +
   theme(axis.text.x = element_text(angle = 45, hjust=1)) #ylab(average~pollen~(grains/m^3))
 #ggsave("pollen_prod_total_genus.jpeg", dpi = 300, width = 7, height = 4, units = "in")
@@ -307,20 +327,30 @@ it_dbh_genus_np %>%
   
   
 #calculate total pollen production for each genus by whether planted or unplanted
-it_dbh_genus_np %>% 
+it_dbh_genus_np_all %>% 
   filter(!is.na(per_tree_pollen_prod)) %>% 
   mutate(Species = case_when(Genus == "Betula" & Species != "papyrifera" ~ "sp.", 
                              Genus == "Quercus" & Species != "rubra" & Species != "palustris" ~ "sp.", 
                              Genus == "Ulmus" & Species != "americana" ~ "sp.", 
                              TRUE ~ Species)) %>% 
-  mutate(p_all_trees = per_tree_pollen_prod,
-         genus_species = paste(Genus, Species, sep = " ")) %>% 
+  
+  group_by(iter, Genus, status) %>% 
+  summarize(total_p_bil = sum(per_tree_pollen_prod) * itree_to_nyc_scaling_factor) %>%  #adding each tree and also removing the billions
+  mutate(total_p = total_p_bil * 1000000000,
+         total_p_tril = total_p / 10^12,
+         total_p_quad = total_p / 10^15) %>% 
   group_by(Genus, status) %>% 
-  summarize(total_p_bil = sum(p_all_trees) ,
-            n = n())  %>% #adding each tree 
-  ungroup() %>% group_by(Genus) %>% #summarize(n2 = sum(n)) %>% 
-  ggplot(aes(x = reorder(Genus, -total_p_bil), y  = total_p_bil, fill = status)) + geom_bar(stat = "identity") + ggthemes::theme_few() + xlab("genus") +
-  ylab("pollen produced (billions)")  + scale_fill_manual(name = "", values = c("gray0","goldenrod",  "gray70")) + theme(axis.text.x = element_text(face = "italic"))
+  summarize(total_p_quad_mean = mean(total_p_quad),
+            total_p_quad_sd = sd(total_p_quad)) %>% 
+  ggplot(aes(x = reorder(Genus, -total_p_quad_mean), y  = total_p_quad_mean, ymax = total_p_quad_mean + total_p_quad_sd, ymin = total_p_quad_mean, 
+             fill = status, color = status)) + 
+  geom_errorbar(position = position_dodge2(preserve = "single", width = 0.2, padding = 0.5))+
+  geom_bar(stat = "identity", position = position_dodge2(preserve = "single")) + 
+  ggthemes::theme_few() + xlab("genus") +
+  ylab("pollen produced (quadrillions)")  +
+  scale_color_manual(name = "", values = c("gray0","goldenrod",  "gray70")) +
+  scale_fill_manual(name = "", values = c("gray0","goldenrod",  "gray70")) + theme(axis.text.x = element_text(face = "italic"))
+ggsave("C:/Users/dsk273/Box/writing/tree planting and pollen in NYC/fig2.jpeg", dpi = 300, width = 7, height = 7, units = "in" )
 
 
 #calculate total pollen production for each genus by i-Tree land use
@@ -342,31 +372,71 @@ it_dbh_genus_np %>%
 
 
 ###  calculate pollen production for all street trees ##############################################
+# old version without SDs
+# names(st_trees)
+# test <- st_trees %>% filter(spc_latin == "Ulmus americana") 
+# unique(st_trees$spc_latin) %>% as.character() %>% sort()#arrange(.)
+# citywide_pol_st <- st_trees %>% 
+#   select(spc_latin, genus, BA_m2, dbh_cm) %>% 
+#   mutate(tree_BA = BA_m2) %>% 
+#   mutate(tree_BA = case_when(genus == "Ulmus" & tree_BA > 0.7 ~ 0.7, 
+#                              genus == "Morus" & tree_BA > 1 ~ 1, 
+#                              TRUE ~ tree_BA)) %>% #restricting Ulmus BA to the range in which pollen production was measured
+#   mutate(per_tree_pollen_prod = case_when(
+#     spc_latin == "Acer negundo" ~ 253.71 * tree_BA + 0.38,
+#     spc_latin == "Acer platanoides" ~ 25.59 * tree_BA + 1.22,
+#     spc_latin == "Acer rubrum" ~ (62.32 * tree_BA + 1.27)*0.106, #.106 is the sex ratio
+#     spc_latin == "Acer saccharinum" ~ (exp(2.28 * tree_BA + 21.98))/1000000000, #convert to billions
+#     genus == "Betula"  ~ 561.16 * tree_BA + 5.03,
+#     genus == "Gleditsia"  ~ 659.91 * tree_BA -3.25,
+#     genus == "Juglans"  ~ 239.08 * tree_BA + 11.47,
+#     genus == "Morus"  ~ (6021.57 * tree_BA^2 + -67.95 * tree_BA + 254.06)*0.578, #.58 adjusts for sex ratio
+#     genus == "Platanus"  ~ 1066.75 * tree_BA + 1.26,
+#     genus == "Populus"  ~ (exp(2.01 * tree_BA + 24.17) * 0.482)/1000000000, #convert to billions
+#     genus == "Quercus"  ~ 423.56 * tree_BA + 36.20, #red oaks and unknown oaks
+#     spc_latin == "Quercus palustris" ~ 327.2 * tree_BA + 14.9, #pin oaks
+#     genus == "Ulmus"  ~ (exp(5.86 * tree_BA + 23.11))/1000000000 #convert to billions
+#   )) %>% 
+#   filter(per_tree_pollen_prod > 0) %>% 
+#   filter(!is.na(per_tree_pollen_prod)) %>% 
+#   group_by(spc_latin, genus) %>% 
+#   summarize(total_p_bil = sum(per_tree_pollen_prod)) %>%  #adding each tree and also removing the billions
+#   mutate(total_p = total_p_bil * 1000000000,
+#          total_p_tril = total_p / 10^12,
+#          total_p_quad = total_p / 10^15)
+# 
+# citywide_pol_st %>% 
+#   group_by(genus) %>% 
+#   summarize(total_p_quad_gen = sum(total_p_quad)) %>% 
+#   ggplot(aes(x = reorder(genus, -total_p_quad_gen), y = total_p_quad_gen)) + geom_col()+ ggthemes::theme_few() + xlab("genus") +
+#   ylab("pollen produced (quadrillions)") +
+#   theme(axis.text.x = element_text(angle = 45, hjust=1)) #ylab(average~pollen~(grains/m^3))
 
-names(st_trees)
-test <- st_trees %>% filter(spc_latin == "Ulmus americana") 
 
-unique(st_trees$spc_latin) %>% as.character() %>% sort()#arrange(.)
-citywide_pol_st <- st_trees %>% 
+#creating a version that perpetuates the variance from the pollen production equations
+for(i in 1:1000){
+  
+citywide_pol_st_i <- st_trees %>% 
   select(spc_latin, genus, BA_m2, dbh_cm) %>% 
   mutate(tree_BA = BA_m2) %>% 
   mutate(tree_BA = case_when(genus == "Ulmus" & tree_BA > 0.7 ~ 0.7, 
                              genus == "Morus" & tree_BA > 1 ~ 1, 
                              TRUE ~ tree_BA)) %>% #restricting Ulmus BA to the range in which pollen production was measured
   mutate(per_tree_pollen_prod = case_when(
-    spc_latin == "Acer negundo" ~ 253.71 * tree_BA + 0.38,
-    spc_latin == "Acer platanoides" ~ 25.59 * tree_BA + 1.22,
-    spc_latin == "Acer rubrum" ~ (62.32 * tree_BA + 1.27)*0.106, #.106 is the sex ratio
-    spc_latin == "Acer saccharinum" ~ (exp(2.28 * tree_BA + 21.98))/1000000000, #convert to billions
-    genus == "Betula"  ~ 561.16 * tree_BA + 5.03,
-    genus == "Gleditsia"  ~ 659.91 * tree_BA -3.25,
-    genus == "Juglans"  ~ 239.08 * tree_BA + 11.47,
-    genus == "Morus"  ~ (6021.57 * tree_BA^2 + 1366.09 * tree_BA + 254.06)*0.578, #.58 adjusts for sex ratio
-    genus == "Platanus"  ~ 1066.75 * tree_BA + 1.26,
-    genus == "Populus"  ~ (exp(2.01 * tree_BA + 24.17) * 0.482)/1000000000, #convert to billions
-    genus == "Quercus"  ~ 423.56 * tree_BA + 36.20, #red oaks and unknown oaks
-    spc_latin == "Quercus palustris" ~ 327.2 * tree_BA + 14.9, #pin oaks
-    genus == "Ulmus"  ~ (exp(5.86 * tree_BA + 23.11))/1000000000 #convert to billions
+    spc_latin == "Acer negundo" ~ rnorm(n = 1, mean = 253.71, sd = 47.75) * tree_BA + rnorm(n = 1, mean = 0.38, sd = 3.26),
+    spc_latin == "Acer platanoides" ~ rnorm(n = 1, mean = 25.59, sd = 7.00) * tree_BA + rnorm(n = 1, mean = 1.22, sd = 0.46),
+    spc_latin == "Acer rubrum" ~ (rnorm(n = 1, mean = 62.32, sd = 13.50) * tree_BA + rnorm(n = 1, mean = 1.27, sd = 0.44)) * 0.106, #.106 is the sex ratio
+    spc_latin == "Acer saccharinum" ~ (exp(rnorm(n = 1, mean = 2.28, sd =0.49) * tree_BA + rnorm(n = 1, mean =21.98, sd =0.28)))/1000000000, #convert to billions
+    genus == "Betula"  ~ rnorm(n = 1, mean = 561.16, sd = 228.86)* tree_BA + rnorm(n = 1, mean = 5.03, sd =4.42),
+    genus == "Gleditsia"  ~ rnorm(n=1, mean = 659.91, sd =103.36) * tree_BA + rnorm(n = 1, mean = -3.25, sd = 1.97),
+    genus == "Juglans"  ~ rnorm(n = 1, mean = 239.08, sd = 64.85) * tree_BA + rnorm(n = 1, mean = 11.47, sd = 8.22),
+    genus == "Morus"  ~ rnorm(n =1, mean = 6021.57, sd =2011.79) * tree_BA^2 + rnorm(n = 1, mean = -67.95, sd = 1366.09) * tree_BA + 
+                           rnorm(n = 1, mean = 254.06, sd = 93.26)*0.578, #.58 adjusts for sex ratio
+    genus == "Platanus"  ~ rnorm(n = 1, mean = 1066.75, sd = 251.73) * tree_BA + rnorm(n = 1, mean = 1.26, sd = 8.15),
+    genus == "Populus"  ~ (exp(rnorm(n = 1, mean = 2.01, sd = 0.24) * tree_BA + rnorm(n = 1, mean = 24.17, sd = 0.19)) * 0.482)/1000000000, #convert to billions
+    genus == "Quercus"  ~ rnorm(n = 1, mean = 423.56, sd = 85.45) * tree_BA + rnorm(n = 1, mean = 36.20, sd = 11.42), #red oaks and unknown oaks
+    spc_latin == "Quercus palustris" ~ rnorm(n = 1, mean = 327.2, sd =100.94) * tree_BA + rnorm(n = 1, mean = 14.9, sd = 7.41), #pin oaks
+    genus == "Ulmus"  ~ (exp(rnorm(n = 1, mean = 5.86, sd = 0.35) * tree_BA + rnorm(n = 1, mean = 23.11, sd = 0.15)))/1000000000 #convert to billions
   )) %>% 
   filter(per_tree_pollen_prod > 0) %>% 
   filter(!is.na(per_tree_pollen_prod)) %>% 
@@ -374,35 +444,57 @@ citywide_pol_st <- st_trees %>%
   summarize(total_p_bil = sum(per_tree_pollen_prod)) %>%  #adding each tree and also removing the billions
   mutate(total_p = total_p_bil * 1000000000,
          total_p_tril = total_p / 10^12,
-         total_p_quad = total_p / 10^15)
+         total_p_quad = total_p / 10^15,
+         iter = i)
 
-citywide_pol_st %>% 
-  group_by(genus) %>% 
+ifelse(i == 1, 
+       citywide_pol_st_i_all <- citywide_pol_st_i,
+       citywide_pol_st_i_all <- bind_rows(citywide_pol_st_i_all, citywide_pol_st_i))
+
+}
+
+
+citywide_pol_st_pre_join <- citywide_pol_st_i_all %>% 
+  group_by(iter, genus) %>% 
   summarize(total_p_quad_gen = sum(total_p_quad)) %>% 
-  ggplot(aes(x = reorder(genus, -total_p_quad_gen), y = total_p_quad_gen)) + geom_col()+ ggthemes::theme_few() + xlab("genus") +
+  group_by(genus) %>% 
+  summarize(total_p_quad_gen_mean = mean(total_p_quad_gen),
+            total_p_quad_gen_sd = sd(total_p_quad_gen)) 
+
+citywide_pol_st_pre_join %>% 
+  ggplot(aes(x = reorder(genus, -total_p_quad_gen_mean), y = total_p_quad_gen_mean, ymax = total_p_quad_gen_mean + total_p_quad_gen_sd,
+             ymin = total_p_quad_gen_mean )) + 
+  geom_col()+ geom_errorbar(width = 0.2)+ggthemes::theme_few() + xlab("genus") +
   ylab("pollen produced (quadrillions)") +
   theme(axis.text.x = element_text(angle = 45, hjust=1)) #ylab(average~pollen~(grains/m^3))
 
+citywide_pol_st_join <- citywide_pol_st_pre_join %>% 
+  rename(pollen_quadrillion_mean = total_p_quad_gen_mean,
+         pollen_quadrillion_sd = total_p_quad_gen_sd) %>% 
+  mutate(data_source = "street trees")
 
 #visualize both total city and street tree pollen
-citywide_pol_join <- citywide_pol %>% 
-  rename(genus = Genus) %>% 
-  group_by(genus) %>% 
-  summarize(total_p_quad_gen = sum(total_p_quad))
+citywide_pol_join <- citywide_pol  %>% 
+   rename(genus = Genus,
+          pollen_quadrillion_mean = total_p_quad_mean,
+          pollen_quadrillion_sd = total_p_quad_sd) %>% 
+  mutate( data_source = "city-wide")
+  # group_by(genus) %>% 
+  # summarize(total_p_quad_gen = sum(total_p_quad))
 
-citywide_pol_st_join <- citywide_pol_st %>% 
-  group_by(genus) %>% 
-  summarize(street = sum(total_p_quad)) 
-
-full_join(citywide_pol_join, citywide_pol_st_join) %>% 
-  pivot_longer(cols = c(2,3), values_to = "pollen_quadrillion", names_to = "data_source") %>% 
-  ggplot(aes(x = reorder(genus, -pollen_quadrillion), y = pollen_quadrillion, fill = data_source)) + geom_col(position = "dodge")+ 
+bind_rows(citywide_pol_st_join, citywide_pol_join)%>% 
+  ggplot(aes(x = reorder(genus, -pollen_quadrillion_mean ), y = pollen_quadrillion_mean, ymax = pollen_quadrillion_mean + pollen_quadrillion_sd, 
+             ymin = pollen_quadrillion_mean, fill = data_source, color = data_source)) + 
+  geom_errorbar(position = position_dodge2(preserve = "single", width = 0.2, padding = 0.5))+
+  geom_bar(stat = "identity", position = position_dodge2(preserve = "single")) + 
+  
   ggthemes::theme_few() + xlab("genus") +
   scale_fill_manual(name = "data source", labels = c("street trees", "city-wide"), values = c("gray24", "gray78")) + 
+  scale_color_manual(name = "data source", labels = c("street trees", "city-wide"), values = c("gray24", "gray78")) + 
   ylab("pollen produced (quadrillions)") +
   theme(axis.text.x = element_text(angle = 45, hjust=1)) #ylab(average~pollen~(grains/m^3))
 
-#ggsave("pollen_prod_total_genus_st_it.jpeg", dpi = 300, width = 7, height = 5, units = "in")
+#ggsave("C:/Users/dsk273/Box/writing/tree planting and pollen in NYC/fig1_pollen_prod_total_genus_st_it.jpeg", dpi = 300, width = 7, height = 5, units = "in")
 
 
 ### calculating future pollen production: i-Tree trees growth and mortality ###########################################################
@@ -469,47 +561,63 @@ pollen_prod_focal_genera <- c("Acer", "Betula", "Platanus", "Quercus", "Morus", 
 it_forecast2 <- left_join(it_forecast_c2, it_sp_list) %>% 
     filter(Genus %in% pollen_prod_focal_genera)
 
-it_forecast3 <- it_forecast2 %>%  
+Sys.time()
+for(i in 1:700){
+it_forecast3_i <- it_forecast2 %>%  
+  dplyr::select(ForecastedYear, Genus, Species, DBH, NumTrees, origin) %>% 
   mutate(tree_BA = 0.00007854 * (DBH * 2.54)^2) %>% #covert DBH from inches to cm and then to basal area
   mutate(per_tree_pollen_prod = case_when(
-    Genus == "Acer" & Species == "negundo" ~ 253.71 * tree_BA + 0.38,
-    Genus == "Acer" & Species == "platanoides" ~ 25.59 * tree_BA + 1.22,
-    Genus == "Acer" & Species == "rubrum" ~ (62.32 * tree_BA + 1.27)*0.106, #.106 is the sex ratio
-    Genus == "Acer" & Species == "saccharinum" ~ (exp(2.28 * tree_BA + 21.98))/1000000000, #convert to billions
-    Genus == "Betula"  ~ 561.16 * tree_BA + 5.03,
-    Genus == "Gleditsia"  ~ 659.91 * tree_BA -3.25,
-    Genus == "Juglans"  ~ 239.08 * tree_BA + 11.47,
-    Genus == "Morus"  ~ (6021.57 * tree_BA^2 + 1366.09 * tree_BA + 254.06)*0.578, #.58 adjusts for sex ratio
-    Genus == "Platanus"  ~ 1066.75 * tree_BA + 1.26,
-    Genus == "Populus"  ~ exp(2.01 * tree_BA + 24.17) * 0.482, #weren't any recorded in the dbh data so this won't be included
-    Genus == "Quercus"  ~ 423.56 * tree_BA + 36.20, #red oaks and unknown oaks
-    Genus == "Quercus" & Species == "palustris" ~ 327.2 * tree_BA + 14.9, #pin oaks
-    Genus == "Ulmus"  ~ (exp(5.86 * tree_BA + 23.11))/1000000000 #convert to billions
-  )) %>% 
+      Genus == "Acer" & Species == "negundo"  ~ rnorm(n = 1, mean = 253.71, sd = 47.75) * tree_BA + rnorm(n = 1, mean = 0.38, sd = 3.26),
+      Genus == "Acer" & Species == "platanoides"  ~ rnorm(n = 1, mean = 25.59, sd = 7.00) * tree_BA + rnorm(n = 1, mean = 1.22, sd = 0.46),
+      Genus == "Acer" & Species == "rubrum" ~ (rnorm(n = 1, mean = 62.32, sd = 13.50) * tree_BA + rnorm(n = 1, mean = 1.27, sd = 0.44)) * 0.106, #.106 is the sex ratio
+      Genus == "Acer" & Species == "saccharinum" ~ (exp(rnorm(n = 1, mean = 2.28, sd =0.49) * tree_BA + rnorm(n = 1, mean =21.98, sd =0.28)))/1000000000, #convert to billions
+      Genus == "Betula"  ~ rnorm(n = 1, mean = 561.16, sd = 228.86)* tree_BA + rnorm(n = 1, mean = 5.03, sd =4.42),
+      Genus == "Gleditsia"  ~ rnorm(n=1, mean = 659.91, sd =103.36) * tree_BA + rnorm(n = 1, mean = -3.25, sd = 1.97),
+      Genus == "Juglans"  ~ rnorm(n = 1, mean = 239.08, sd = 64.85) * tree_BA + rnorm(n = 1, mean = 11.47, sd = 8.22),
+      Genus == "Morus"  ~ rnorm(n =1, mean = 6021.57, sd =2011.79) * tree_BA^2 + rnorm(n = 1, mean = -67.95, sd = 1366.09) * tree_BA +
+        rnorm(n = 1, mean = 254.06, sd = 93.26)*0.578, #.58 adjusts for sex ratio
+      Genus == "Platanus"  ~ rnorm(n = 1, mean = 1066.75, sd = 251.73) * tree_BA + rnorm(n = 1, mean = 1.26, sd = 8.15),
+      Genus == "Populus"  ~ (exp(rnorm(n = 1, mean = 2.01, sd = 0.24) * tree_BA + rnorm(n = 1, mean = 24.17, sd = 0.19)) * 0.482)/1000000000, #convert to billions
+      Genus == "Quercus"  ~ rnorm(n = 1, mean = 423.56, sd = 85.45) * tree_BA + rnorm(n = 1, mean = 36.20, sd = 11.42), #red oaks and unknown oaks
+      Genus == "Quercus" & Species == "palustris" ~ rnorm(n = 1, mean = 327.2, sd =100.94) * tree_BA + rnorm(n = 1, mean = 14.9, sd = 7.41), #pin oaks
+      Genus == "Ulmus"  ~ (exp(rnorm(n = 1, mean = 5.86, sd = 0.35) * tree_BA + rnorm(n = 1, mean = 23.11, sd = 0.15)))/1000000000 #convert to billions
+    ),
+    iter = i)  %>% 
   filter(!is.na(per_tree_pollen_prod)) #remove non-focal Acer spp
 
+ifelse(i == 1, 
+       it_forecast3_all <- it_forecast3_i,
+       it_forecast3_all <- bind_rows(it_forecast3_all, it_forecast3_i))
+}
+Sys.time()
+
 #calculate total pollen production for each taxon
-it_forecast_citywide  <- it_forecast3 %>% 
+it_forecast_citywide  <- it_forecast3_all %>% 
   mutate(cohort_tree_pollen_prod =per_tree_pollen_prod * NumTrees) %>% #scaling each tree by estimated number per city 
-  group_by(Genus, Species, scientificname, ForecastedYear, origin, planted) %>% 
+  group_by(Genus, ForecastedYear, origin, iter) %>% 
   summarize(total_p_bil = sum(cohort_tree_pollen_prod),
             n_trees = sum(NumTrees),
             ba_mean = mean(tree_BA )) %>% 
   #filter(!is.na(total_p_bil)) %>% 
   mutate(total_p = total_p_bil * 1000000000,
          total_p_tril = total_p / 10^12,
-         total_p_quad = total_p / 10^15)
+         total_p_quad = total_p / 10^15) %>% 
+  group_by(Genus, ForecastedYear, origin) %>% 
+  summarize(total_p_quad_mean = mean(total_p_quad),
+            total_p_quad_sd = sd(total_p_quad)) %>% 
+  mutate(origin = case_when(is.na(origin)~ "original", TRUE ~ origin)) 
 
 
 #figure 2: pollen production over time for each species by existing trees vs new trees assuming approximately equal replacement
 it_forecast_citywide %>% 
-  group_by(Genus, ForecastedYear, origin) %>% 
-  summarize(total_p_quad_genus = sum(total_p_quad)) %>% 
-  mutate(origin = case_when(is.na(origin)~ "original", TRUE ~ origin)) %>% 
-  ggplot(aes(x = ForecastedYear, y = total_p_quad_genus, fill = origin)) + geom_area()+ 
+  ggplot(aes(x = ForecastedYear, y = total_p_quad_mean, color = origin, fill = origin)) + 
+  geom_ribbon(aes(x = ForecastedYear, 
+                  ymin = total_p_quad_mean - total_p_quad_sd, ymax =  total_p_quad_mean + total_p_quad_sd, color = origin, fill = origin)) +
   ggthemes::theme_few() + xlab("year") + theme(legend.position = c(0.8, 0.2), strip.text = element_text(face = "italic")) + 
+  geom_line(color = "black")+ 
   ylab("pollen produced (quadrillions)") + facet_wrap(~Genus, scales = "free_y") + 
-  scale_fill_manual(name = "tree origin", values = c("gold","gray40"))
+  scale_fill_manual(name = "tree origin", values = c("gold","gray40")) +
+  scale_color_manual(name = "tree origin", values = c("gold","gray40"))
 #ggsave("pollen_prod_time_treeorigin_genus.jpeg", dpi = 300, width = 6, height = 5, units = "in")
 
 
@@ -652,7 +760,7 @@ it_forecast3 %>%
 #     genus == "Betula"  ~ 561.16 * tree_BA + 5.03,
 #     genus == "Gleditsia"  ~ 659.91 * tree_BA -3.25,
 #     genus == "Juglans"  ~ 239.08 * tree_BA + 11.47,
-#     genus == "Morus"  ~ (6021.57 * tree_BA^2 + 1366.09 * tree_BA + 254.06)*0.578, #.58 adjusts for sex ratio
+#     genus == "Morus"  ~ (6021.57 * tree_BA^2 + -67.95 * tree_BA + 254.06)*0.578, #.58 adjusts for sex ratio
 #     genus == "Platanus"  ~ 1066.75 * tree_BA + 1.26,
 #     genus == "Populus"  ~ (exp(2.01 * tree_BA + 24.17) * 0.482)/1000000000, #convert to billions
 #     genus == "Quercus"  ~ 423.56 * tree_BA + 36.20, #red oaks and unknown oaks
@@ -760,7 +868,7 @@ length(st_trees$genus[st_trees$genus == "Betula"])/length(st_trees$genus[st_tree
 #     Genus == "Betula"  ~ 561.16 * tree_BA + 5.03,
 #     Genus == "Gleditsia"  ~ 659.91 * tree_BA -3.25,
 #     Genus == "Juglans"  ~ 239.08 * tree_BA + 11.47,
-#     Genus == "Morus"  ~ (6021.57 * tree_BA^2 + 1366.09 * tree_BA + 254.06)*0.578, #.58 adjusts for sex ratio
+#     Genus == "Morus"  ~ (6021.57 * tree_BA^2 + -67.95 * tree_BA + 254.06)*0.578, #.58 adjusts for sex ratio
 #     Genus == "Platanus"  ~ 1066.75 * tree_BA + 1.26,
 #     Genus == "Populus"  ~ exp(2.01 * tree_BA + 24.17) * 0.482, #weren't any recorded in the dbh data so this won't be included
 #     Genus == "Quercus"  ~ 423.56 * tree_BA + 36.20, #red oaks and unknown oaks
