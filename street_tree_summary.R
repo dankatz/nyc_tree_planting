@@ -2,7 +2,7 @@
 #Daniel Katz, Guy Robinson, Alexis Ellis, and David Nowak
 #corresponding author: Daniel Katz, dankatz@cornell.edu
 #published in Urban Forestry & Urban Greening
-#DOI: 
+#DOI: https://doi.org/10.1016/j.ufug.2024.128208
 
 #set up work environment
 library(dplyr)
@@ -466,9 +466,6 @@ for(i in 1:1000){
 citywide_pol_st_i <- st_trees %>% 
   select(spc_latin, genus, BA_m2, dbh_cm) %>% 
   mutate(tree_BA = BA_m2) %>% 
-  # mutate(tree_BA = case_when(genus == "Ulmus" & tree_BA > 0.7 ~ 0.7, 
-  #                            genus == "Morus" & tree_BA > 1 ~ 1, 
-  #                            TRUE ~ tree_BA)) %>% #restricting Ulmus BA to the range in which pollen production was measured
   mutate(per_tree_pollen_prod = case_when(
     spc_latin == "Acer negundo" ~ ( Acne_param_a * tree_BA + Acne_param_b) *0.558, #.558 is the sex ratio,
     spc_latin == "Acer platanoides" ~ Acpl_param_a * tree_BA + Acpl_param_b,
@@ -725,7 +722,7 @@ pol_age_to_use <- left_join(it_forecast3_i, individuals_to_use_in_fig) %>%
   mutate(tree_BA = 0.00007854 * (DBH * 2.54)^2) #covert DBH from inches to cm and then to basal area
   
 #draw from distributions  
-for(i in 189:1000){
+for(i in 1:1000){
   #drawing from the parameter distributions for each taxon
   Acne_param_a <- rnorm(n = 1, mean = 253.71, sd = 47.75)
   Acne_param_b <- rnorm(n = 1, mean = 0.38, sd = 3.26)
